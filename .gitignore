@@ -1,0 +1,7 @@
+# files
+.DS_Store
+
+# dirs
+data
+__pycache__
+.vscode
