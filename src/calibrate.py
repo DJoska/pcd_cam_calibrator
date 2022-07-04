@@ -2,19 +2,21 @@ import cv2 as cv
 import numpy as np
 import os
 import open3d
-import re
-
-def natural_sort(l):
-    """
-    Natural sort function for filenames
-    """
-    convert = lambda text: int(text) if text.isdigit() else text.lower()
-    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
-    return sorted(l, key=alphanum_key)
+import pickle
+from utils import natural_sort
 
 def pick_2d_points(image_path):
     """
     Opens a GUI to pick 2d coordinates in an image file
+
+    Returns:
+    img_points: 3-D array
+                An array of the image points extracted
+    ----
+    Parameters
+    ----
+    image_path: string
+                The absolute file path of an image to be picked from
     """    
     def click_event(event, x, y, flags, params):
         """
@@ -41,6 +43,16 @@ def pick_2d_points(image_path):
 def pick_3d_points(pcd_path):
     """
     Opens a GUI to pick 3d coordinates in a point cloud file
+
+    Returns:
+    obj_points: 3-D array
+                An array of the object points extracted
+    ----
+    Parameters
+    ----
+    pcd_path: string
+                The absolute file path of a pcd to be picked from
+
     """
     a = open3d.io.read_point_cloud(pcd_path)
 
@@ -61,6 +73,26 @@ def pick_3d_points(pcd_path):
 def calibrate_intrisics(im_folder, pcd_folder, image_type=".png"):
     """
     Makes use of OpenCV's camera calibration functions to calibrate based on picked points
+
+    Returns:
+    K:      2-D array
+            The calculated camera intrinsic matrix
+    d:      array
+            The distortion coefficients
+    r:      array
+            The rotation vectors
+    t:      array
+            The translation vectors
+    ----
+    Parameters
+    ----
+    im_folder:  string
+                The absolute folder path of images to be picked from
+    pcd_folder: string
+                The absolute folder path of pcds to be picked from
+    image_type: string
+                The image file extension - png by default
+    
     """
 
     # get lists of absolute image and pcd filepaths
@@ -107,6 +139,10 @@ def calibrate_intrisics(im_folder, pcd_folder, image_type=".png"):
     print(r)
     print("t vecs")
     print(t)
+    
+    with open(r"../data/results.pickle", "wb") as output_file:
+        pickle.dump(d, output_file)
+
     if ret:
         return k, d, r, t
     else:

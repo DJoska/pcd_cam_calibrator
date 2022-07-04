@@ -4,7 +4,10 @@ This is a tool for calibrating the intrinsic matrix of a camera by manually pick
 
 ## Installation
 
-#TODO
+The simplest way to install all dependencies and requirements for this project is to create a new conda environment from the supplied text file. This is done by running the following commands:
+
+`cd conda_envs`
+`conda create --name pcd_cam --file pcd_cam.txt`
 
 ## Usage
 
@@ -14,10 +17,9 @@ This is a tool for calibrating the intrinsic matrix of a camera by manually pick
 
 -   [x] Write 2d point picking function
 -   [x] Write 3d point picking function
--   [ ] Transform coordinates into correct form ( + save session perhaps )
--   [ ] Write calibration function
+-   [x] Transform coordinates into correct form ( + save session perhaps )
+-   [x] Write calibration function
+-   [x] Write additional utils if needed
 -   [ ] Write validation function
--   [ ] Complete reconstruction method
--   [ ] Write additional utils if needed
 -   [ ] Perform validation for inclusion into publications
 -   [ ] Update documentation with more examples, description, etc. 
