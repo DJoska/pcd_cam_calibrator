@@ -3,5 +3,6 @@
 
 # dirs
 data
+results
 __pycache__
 .vscode

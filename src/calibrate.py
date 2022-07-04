@@ -140,7 +140,7 @@ def calibrate_intrisics(im_folder, pcd_folder, image_type=".png"):
     print("t vecs")
     print(t)
     
-    with open(r"../data/results.pickle", "wb") as output_file:
+    with open(r"./results/calib.pickle", "wb") as output_file:
         pickle.dump(d, output_file)
 
     if ret:
@@ -157,12 +157,12 @@ def get_reprojection_errors(plot=False):
     return 1
 
 if __name__=="__main__":
-    example_png = "/Users/user/Desktop/wildpose_work/pngs/258.999313280.png"
-    example_pcd = "/Users/user/Desktop/wildpose_work/pcds/258.999313280.pcd"
-    png_folder = "/Users/user/Desktop/pngs"
-    pcd_folder = "/Users/user/Desktop/pcds"
+    #example_png = "/Users/user/Desktop/wildpose_work/pngs/258.999313280.png"
+    #example_pcd = "/Users/user/Desktop/wildpose_work/pcds/258.999313280.pcd"
+    im_folder = "./data/sample_images"
+    pcd_folder = "./data/sample_pcds"
     #pts2d = pick_2d_points(example_png)
     #pts3d = pick_3d_points(example_pcd)
     #print(pts2d)
     #print(pts3d)
-    calibrate_intrisics(png_folder, pcd_folder)
+    calibrate_intrisics(im_folder, pcd_folder, image_type = ".jpg")
