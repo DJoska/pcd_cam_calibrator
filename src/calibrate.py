@@ -3,7 +3,8 @@ import numpy as np
 import os
 import open3d
 import pickle
-from utils import natural_sort
+from utils import natural_sort, load_pickle
+import matplotlib.pyplot as plt
 
 def pick_2d_points(image_path):
     """
@@ -55,6 +56,7 @@ def pick_3d_points(pcd_path):
 
     """
     a = open3d.io.read_point_cloud(pcd_path)
+    #print(a.points["rgb"].values)
 
     vis = open3d.visualization.VisualizerWithEditing()
     vis.create_window()
@@ -65,8 +67,10 @@ def pick_3d_points(pcd_path):
     print(vis.get_picked_points())
     obj_pts = []
     for i in vis.get_picked_points():
-        print(a.points[i])
-        obj_pts.append(a.points[i])
+        #print(a.points[i])
+        point = [1000*a.points[i][1], 1000*a.points[i][2], 1000*a.points[i][0]]
+        print(point)
+        obj_pts.append(point)
     
     return obj_pts
 
@@ -110,8 +114,6 @@ def calibrate_intrisics(im_folder, pcd_folder, image_type=".png"):
     for pcd in pcds:
         obj_mat = pick_3d_points(pcd)
         all_obj_pts.append(obj_mat)
-    
-    
 
     first_im = cv.imread(images[0])
     first_im_gray = cv.cvtColor(first_im, cv.COLOR_BGR2GRAY)
@@ -125,8 +127,8 @@ def calibrate_intrisics(im_folder, pcd_folder, image_type=".png"):
     print(all_obj_pts_m)
 
     intrinsic_guess = np.asarray([
-        [700, 0, 426],
-        [0, 700, 240],
+        [5000, 0, 1000],
+        [0, 5000, 500],
         [0, 0, 1]
     ], dtype=np.float32)
 
@@ -139,30 +141,124 @@ def calibrate_intrisics(im_folder, pcd_folder, image_type=".png"):
     print(r)
     print("t vecs")
     print(t)
+
+    points_dict = {"image": all_img_pts_m, "object": all_obj_pts_m}
     
     with open(r"./results/calib.pickle", "wb") as output_file:
-        pickle.dump(d, output_file)
+        pickle.dump((k, d, r, t, ret), output_file)
 
-    if ret:
-        return k, d, r, t
-    else:
-        return 0,0,0,0
+    with open(r"./results/points.pickle", "wb") as output_file:
+        pickle.dump((points_dict), output_file)
 
+    return k, d, r, t
 
-def get_reprojection_errors(plot=False):
+def reproject_world_points(pcd_path, image_path, cam_matrix, d, image_type=".png"):
     """
-    Returns reprojection errors for a given calibration session
-    TODO
-    """
-    return 1
+    Reprojects the 3D points from a given pcd file to the image plane
 
-if __name__=="__main__":
-    #example_png = "/Users/user/Desktop/wildpose_work/pngs/258.999313280.png"
-    #example_pcd = "/Users/user/Desktop/wildpose_work/pcds/258.999313280.pcd"
-    im_folder = "./data/sample_images"
-    pcd_folder = "./data/sample_pcds"
-    #pts2d = pick_2d_points(example_png)
-    #pts3d = pick_3d_points(example_pcd)
-    #print(pts2d)
-    #print(pts3d)
-    calibrate_intrisics(im_folder, pcd_folder, image_type = ".jpg")
+    Returns:
+    ----
+    None
+    ----
+    Parameters:
+    ----
+    pcd_path:   string
+                The absolute path of the folder of pcds to reproject
+    image_path: strin
+                The absolute path of the folder of images to reproject
+    cam_matrix: 3x3 Numpy array
+                The calculated intrinsic matrix of the camera
+    d:          1x5 Numpy array
+                The calculated distortion coefficients of the camera
+    """
+    images = natural_sort([os.path.join(image_path, im) for im in os.listdir(image_path) if image_type in im])
+    print(images)
+    pcds = natural_sort([os.path.join(pcd_path, pcd) for pcd in os.listdir(pcd_path) if ".pcd" in pcd])
+    print(pcds)
+
+    all_obj_pts=[]
+
+    for pcd in pcds:
+        obj_mat = pick_3d_points(pcd)
+        all_obj_pts.append(obj_mat)
+
+        all_obj_pts_m = np.asarray(all_obj_pts, dtype=np.float32)
+
+        print("Object Points:")
+        print(all_obj_pts_m)
+
+        rvec = tvec = (0,0,0)
+
+        cam_matrix_m = np.asarray(cam_matrix)
+        d_m = np.asarray(d)
+
+        img_pts = cv.projectPoints(all_obj_pts_m, rvec, tvec, cam_matrix_m, d_m)
+        print(img_pts[0])
+
+        image_fp = images[0]
+        im = cv.imread(image_fp, 1)
+        plt.imshow(im)
+        for pt in img_pts[0]:
+            print(pt)
+            plt.scatter(pt[0][0], pt[0][1])
+        plt.show()
+
+    return(0)
+
+def reproject_points_file(calib_filepath = "./results/5m/calib.pickle", points_filepath = "./results/5m/points.pickle"):
+    """
+    Calculates reprojection errors from points file
+    """
+    mat = load_pickle(calib_filepath)
+    points = load_pickle(points_filepath)
+    img_pts = points["image"]
+    obj_pts = points["object"]
+
+    newmat = mat[0]
+    newmat[0][0] = -20000
+    newmat[1][1] = -20000
+    newmat[0][2] = 1000
+    newmat[1][2] = 100
+
+    err_arr = []
+
+    for i,obj in enumerate(obj_pts):
+        rvec = tvec = (0,0,0)
+        img_pts_projected = cv.projectPoints(obj, rvec, tvec, newmat, mat[1])[0]
+        img_pts_actual = img_pts[i]
+        print("Projected:")
+        print(img_pts_projected)
+        print("Actual")
+        print(img_pts_actual)
+        tot = 0
+        for j in range(len(img_pts_actual)):
+            norm_dist = np.sqrt( abs((img_pts_projected[j][0][0]-img_pts_actual[j][0]) * (img_pts_projected[j][0][1]-img_pts_actual[j][1]) ))
+            print(norm_dist)
+            tot+=norm_dist
+        
+        err = tot/(len(img_pts_actual))
+        print(err)
+        err_arr.append(err)
+
+    print(err_arr)
+    print(np.mean(err_arr))
+    print(np.std(err_arr))
+
+
+if __name__ == "__main__":
+    im_folder = "./data/images"
+    pcd_folder = "./data/pcd"
+    mat = load_pickle(r"./results/5m/calib.pickle")
+    matrix_calib = [   [ -22000,  0.00000000e+00, 1200],
+        [ 0.00000000e+00,  -22000, -100],
+        [ 0.00000000e+00,  0.00000000e+00,  1.00000000e+00]]
+    ds = [ 0.06734681, -0.0479633,  -0.01882605,  0.10849954, -0.00990272]
+
+    print("matrix")
+    print(mat[0])
+    print("dist")
+    print(mat[1])
+
+    #reproject_world_points(pcd_folder, im_folder, newmat, mat[1], image_type=".png")
+    #calibrate_intrisics(im_folder, pcd_folder, image_type = ".jpg")
+    reproject_points_file()
