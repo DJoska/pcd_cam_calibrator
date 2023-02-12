@@ -105,8 +105,9 @@ def calibrate_intrisics(im_folder, pcd_folder, image_type=".png"):
     pcds = natural_sort([os.path.join(pcd_folder, pcd) for pcd in os.listdir(pcd_folder) if ".pcd" in pcd])
     print(pcds)
 
-    all_obj_pts = []
     all_img_pts = []
+    all_obj_pts = []
+
     for im in images:
         img_mat = pick_2d_points(im)
         all_img_pts.append(img_mat)
@@ -127,8 +128,8 @@ def calibrate_intrisics(im_folder, pcd_folder, image_type=".png"):
     print(all_obj_pts_m)
 
     intrinsic_guess = np.asarray([
-        [5000, 0, 1000],
-        [0, 5000, 500],
+        [5000, 0, 600],
+        [0, 5000, 300],
         [0, 0, 1]
     ], dtype=np.float32)
 
@@ -197,7 +198,8 @@ def reproject_world_points(pcd_path, image_path, cam_matrix, d, image_type=".png
 
         image_fp = images[0]
         im = cv.imread(image_fp, 1)
-        plt.imshow(im)
+        im_inverted = cv.cvtColor(im, cv.COLOR_BGR2RGB)
+        plt.imshow(im_inverted)
         for pt in img_pts[0]:
             print(pt)
             plt.scatter(pt[0][0], pt[0][1])
@@ -205,7 +207,7 @@ def reproject_world_points(pcd_path, image_path, cam_matrix, d, image_type=".png
 
     return(0)
 
-def reproject_points_file(calib_filepath = "./results/5m/calib.pickle", points_filepath = "./results/5m/points.pickle"):
+def reproject_points_file(calib_filepath = "./results/calib.pickle", points_filepath = "./results/points.pickle"):
     """
     Calculates reprojection errors from points file
     """
@@ -214,17 +216,13 @@ def reproject_points_file(calib_filepath = "./results/5m/calib.pickle", points_f
     img_pts = points["image"]
     obj_pts = points["object"]
 
-    newmat = mat[0]
-    newmat[0][0] = -20000
-    newmat[1][1] = -20000
-    newmat[0][2] = 1000
-    newmat[1][2] = 100
-
+    k = mat[0]
     err_arr = []
+    flat_error_list = []
 
     for i,obj in enumerate(obj_pts):
         rvec = tvec = (0,0,0)
-        img_pts_projected = cv.projectPoints(obj, rvec, tvec, newmat, mat[1])[0]
+        img_pts_projected = cv.projectPoints(obj, rvec, tvec, k, mat[1])[0]
         img_pts_actual = img_pts[i]
         print("Projected:")
         print(img_pts_projected)
@@ -232,9 +230,13 @@ def reproject_points_file(calib_filepath = "./results/5m/calib.pickle", points_f
         print(img_pts_actual)
         tot = 0
         for j in range(len(img_pts_actual)):
+            signed_dist_x = (img_pts_projected[j][0][0]-img_pts_actual[j][0])
+            signed_dist_y = (img_pts_projected[j][0][1]-img_pts_actual[j][1])
             norm_dist = np.sqrt( abs((img_pts_projected[j][0][0]-img_pts_actual[j][0]) * (img_pts_projected[j][0][1]-img_pts_actual[j][1]) ))
             print(norm_dist)
             tot+=norm_dist
+            flat_error_list.append(signed_dist_x)
+            flat_error_list.append(signed_dist_y)
         
         err = tot/(len(img_pts_actual))
         print(err)
@@ -244,21 +246,85 @@ def reproject_points_file(calib_filepath = "./results/5m/calib.pickle", points_f
     print(np.mean(err_arr))
     print(np.std(err_arr))
 
+    return(flat_error_list)
+    
+def plot_histograms():
+    """
+    Plots histograms for reprojection errors
+    """
+
+    nonplanar_5m = reproject_points_file(calib_filepath="/Users/user/Desktop/nonplanar/5m/calib.pickle", 
+        points_filepath="/Users/user/Desktop/nonplanar/5m/points.pickle")
+    planar_5m = reproject_points_file(calib_filepath="/Users/user/Desktop/planar/5m/calib.pickle", 
+        points_filepath="/Users/user/Desktop/planar/5m/points.pickle")    
+    
+    nonplanar_50m = reproject_points_file(calib_filepath="/Users/user/Desktop/nonplanar/50m/calib.pickle", 
+        points_filepath="/Users/user/Desktop/nonplanar/50m/points.pickle")
+    planar_50m = reproject_points_file(calib_filepath="/Users/user/Desktop/planar/50m/calib.pickle", 
+        points_filepath="/Users/user/Desktop/planar/50m/points.pickle")    
+
+    nonplanar_100m = reproject_points_file(calib_filepath="/Users/user/Desktop/nonplanar/100m/calib.pickle", 
+        points_filepath="/Users/user/Desktop/nonplanar/100m/points.pickle")
+    planar_100m = reproject_points_file(calib_filepath="/Users/user/Desktop/planar/100m/calib.pickle", 
+        points_filepath="/Users/user/Desktop/planar/100m/points.pickle")    
+    
+    plt.subplot(3,2,1)
+    plt.hist(planar_5m, bins=20)
+    plt.title("Planar rig at 5m, n=120")
+    plt.xlabel("Error in px")
+    plt.ylabel("No. of errors")
+
+    plt.subplot(3,2,2)
+    plt.hist(nonplanar_5m, bins=20)
+    plt.title("Non-planar rig at 5m, n=120")
+    plt.xlabel("Error in px")
+    plt.ylabel("No. of errors")
+
+    plt.subplot(3,2,3)
+    plt.hist(planar_50m, bins=20)
+    plt.title("Planar rig at 50m, n=120")
+    plt.xlabel("Error in px")
+    plt.ylabel("No. of errors")
+
+    plt.subplot(3,2,4)
+    plt.hist(nonplanar_50m, bins=20)
+    plt.title("Non-planar rig at 50m, n=120")
+    plt.xlabel("Error in px")
+    plt.ylabel("No. of errors")
+
+    plt.subplot(3,2,5)
+    plt.hist(planar_100m, bins=20)
+    plt.title("Planar rig at 100m, n=120")
+    plt.xlabel("Error in px")
+    plt.ylabel("No. of errors")
+
+    plt.subplot(3,2,6)
+    plt.hist(nonplanar_100m, bins=20)
+    plt.title("Non-planar rig at 100m, n=120")
+    plt.xlabel("Error in px")
+    plt.ylabel("No. of errors")
+
+    plt.subplots_adjust(left=0.1,
+                    bottom=0.1,
+                    right=0.9,
+                    top=0.9,
+                    wspace=0.4,
+                    hspace=0.4)
+    plt.show()
+    
 
 if __name__ == "__main__":
-    im_folder = "./data/images"
-    pcd_folder = "./data/pcd"
-    mat = load_pickle(r"./results/5m/calib.pickle")
-    matrix_calib = [   [ -22000,  0.00000000e+00, 1200],
-        [ 0.00000000e+00,  -22000, -100],
-        [ 0.00000000e+00,  0.00000000e+00,  1.00000000e+00]]
-    ds = [ 0.06734681, -0.0479633,  -0.01882605,  0.10849954, -0.00990272]
+    im_folder = "/Users/user/Desktop/wildpose_thesis/planar/5m/figims"
+    pcd_folder = "/Users/user/Desktop/wildpose_thesis/planar/5m/figpcd"
 
-    print("matrix")
-    print(mat[0])
-    print("dist")
-    print(mat[1])
+    # STEP 1 - Labelling and calibration
+    # calibrate_intrisics(im_folder, pcd_folder, image_type = ".png")
 
-    #reproject_world_points(pcd_folder, im_folder, newmat, mat[1], image_type=".png")
-    #calibrate_intrisics(im_folder, pcd_folder, image_type = ".jpg")
-    reproject_points_file()
+    # STEP 2 - Inspection of results
+    #reproject_points_file()
+
+    # STEP 3 - Plotting
+    
+    #reproject_points_file(calib_filepath="/Users/user/Desktop/nonplanar/5m/calib.pickle", points_filepath="/Users/user/Desktop/nonplanar/5m/points.pickle")
+    
+    #plot_histograms()
